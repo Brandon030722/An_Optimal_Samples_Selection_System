@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>An Optimal Sample‑Selection System</title>
+
+<!-- ============ clean UI ============ -->
+<style>
+:root{
+  --primary:#2563eb; --primary-hover:#1e4fca;
+  --border:#e5e7eb;  --bg:#ffffff; --bg-alt:#f9fafb; --text:#111827;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  max-width:960px;margin:2rem auto;padding:0 1rem;
+  background:var(--bg-alt);color:var(--text);line-height:1.6;
+}
+h1{text-align:center;margin-bottom:1.5rem;font-size:2rem;font-weight:600}
+h2,h3{font-size:1.25rem;font-weight:600;margin:1.4rem 0 .75rem}
+
+.field{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem;margin:.45rem 0}
+input[type=number]{
+  padding:.4rem .6rem;width:90px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg);transition:border-color .15s
+}
+input[type=number]:focus{outline:none;border-color:var(--primary)}
+input[disabled]{opacity:.55;cursor:not-allowed}
+textarea{
+  width:100%;min-height:260px;padding:.55rem;border:1px solid var(--border);
+  border-radius:6px;font-family:ui-monospace,Consolas,monospace;resize:vertical
+}
+
+button{
+  padding:.48rem 1.15rem;margin:.25rem .25rem;cursor:pointer;
+  background:var(--primary);color:#fff;border:1px solid var(--primary);
+  border-radius:6px;transition:background .2s
+}
+button:hover:not(:disabled){background:var(--primary-hover)}
+button:disabled{opacity:.55;cursor:not-allowed}
+
+#pages>section{display:none}
+#pages>section.active{display:block}
+
+table{width:100%;border-collapse:collapse;margin:1rem 0;background:var(--bg)}
+th,td{border:1px solid #ccc;padding:.45rem;text-align:center}
+th{background:var(--bg-alt)}
+
+/* tooltip “?” */
+.tooltip{position:relative;margin-left:6px;font-weight:bold;color:var(--primary);cursor:help}
+.tooltip .tooltiptext{
+  visibility:hidden;opacity:0;width:220px;background:#333;color:#fff;text-align:left;
+  border-radius:4px;padding:6px 8px;position:absolute;bottom:120%;left:50%;
+  transform:translateX(-50%);transition:opacity .25s;font-size:12px;line-height:1.35;z-index:1
+}
+.tooltip:hover .tooltiptext{visibility:visible;opacity:1}
+
+/* indeterminate progress bar */
+#progressWrap{width:100%;height:4px;background:var(--border);overflow:hidden;display:none;margin-top:.6rem}
+#progressBar{width:40%;height:100%;background:var(--primary);position:relative;left:-40%;
+  animation:slide 1.2s linear infinite}
+@keyframes slide{0%{left:-40%}50%{left:20%}100%{left:100%}}
+
+@media(max-width:540px){.field{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+
+<body>
+<h1>An Optimal Sample‑Selection System</h1>
+
+<div id="pages">
+<!-- ================= PAGE 1 ================= -->
+<section id="pageRun" class="active">
+  <h2>Input parameters</h2>
+
+  <!-- 1 m -->
+  <div class="field">m <input name="m" type="number" value="45"></div>
+
+  <!-- 2 n quantity -->
+  <div class="field">n <input name="n" id="nNum" type="number" value="10"></div>
+
+  <!-- 3 mode select -->
+  <div class="field">
+    <label><input type="radio" name="nMode" value="random" checked> Random n</label>
+    <label><input type="radio" name="nMode" value="selected"> Selected n</label>
+  </div>
+
+  <!-- 4 Sample IDs -->
+  <div class="field" style="flex-direction:column;align-items:flex-start;width:100%">
+    The selected n&nbsp;(comma / space):
+    <textarea id="selBox" rows="2" disabled></textarea>
+  </div>
+
+  <!-- k / j / s -->
+  <div class="field">k <input name="k" type="number" value="6"></div>
+  <div class="field">j <input name="j" type="number" value="4"></div>
+  <div class="field">s <input name="s" type="number" value="4"></div>
+
+  <!-- min_s_covered -->
+  <div class="field">
+    Min_s_covered <input name="min_s_covered" type="number" value="1">
+    <span class="tooltip">?
+      <span class="tooltiptext">Minimum number of groups in which <em>each</em> item must appear.</span>
+    </span>
+  </div>
+
+  <!-- max_trials -->
+  <div class="field">
+    Max_trials <input name="max_trials" type="number" value="50">
+    <span class="tooltip">?
+      <span class="tooltiptext">Upper limit on the total number of greedy search iterations. The larger this number is, the more rounds the algorithm has and the more accurate the algorithm is.</span>
+    </span>
+  </div>
+
+  <!-- sample_per_round -->
+  <div class="field">
+    Sample_per_round <input name="sample_per_round" type="number" value="200">
+    <span class="tooltip">?
+      <span class="tooltiptext">Number of random candidate sets generated in <em>each</em> iteration.</span>
+    </span>
+  </div>
+
+  <!-- buttons -->
+  <div style="margin-top:1rem">
+    <button id="runBtn">Run</button>
+    <button id="storeBtn" disabled>Store (.db)</button>
+    <button id="clearBtn">Clear</button>
+    <button id="toDB">Go to DB</button>
+    <span id="runState"></span>
+  </div>
+
+  <!-- progress -->
+  <div id="progressWrap"><div id="progressBar"></div></div>
+
+  <h3 id="resTitle">Result</h3>
+  <textarea id="resBox" readonly>—</textarea>
+</section>
+
+<!-- ================= PAGE 2 ================= -->
+<section id="pageDB">
+  <h2>Data Base Resources</h2>
+  <button id="refresh">Refresh list</button>
+  <table>
+    <thead><tr><th>File</th><th>Display</th><th>Delete</th></tr></thead>
+    <tbody id="fileTbody"></tbody>
+  </table>
+  <h3 id="viewTitle">Viewer</h3>
+  <textarea id="viewBox" readonly>—</textarea><br>
+  <button id="backBtn">Back</button>
+  <button onclick="window.print()">Print</button>
+</section>
+</div>
+
+<!-- ================ SCRIPT ================= -->
+<script>
+const apiBase = location.protocol==='file:'? 'http://127.0.0.1:8000' : '';
+const qs = id => document.getElementById(id);
+function toggle(p){qs('pageRun').classList.toggle('active',p==='run');qs('pageDB').classList.toggle('active',p==='db');}
+
+/* --- mode toggle --- */
+const nNum  = qs('nNum');
+const selBox= qs('selBox');
+document.querySelectorAll('input[name="nMode"]').forEach(r=>{
+  r.onchange = () => {
+    const selected = r.value === 'selected' && r.checked;
+    selBox.disabled = !selected;          // 仅 selected 模式可填写样本
+  };
+});
+selBox.disabled = true;                   // 初始 random
+
+/* --- progress helpers --- */
+const progWrap=qs('progressWrap');
+const startProgress=()=>{progWrap.style.display='block';};
+const stopProgress =()=>{progWrap.style.display='none';};
+
+let lastResult=null;
+
+/* ---------- Run ---------- */
+qs('runBtn').onclick=async()=>{
+  startProgress();
+  const params={};
+  params.n = nNum.value;
+
+  ['m','k','j','s','min_s_covered','max_trials','sample_per_round']
+    .forEach(k=>params[k]=qs('pageRun').querySelector(`[name="${k}"]`).value);
+
+  // 如果是 selected 模式且有样本列表
+  const isSelected = document.querySelector('input[value="selected"]').checked;
+  if(isSelected){
+    const arr = selBox.value.trim().split(/[,\\s]+/).filter(x=>x).map(Number).filter(x=>!isNaN(x));
+    if(arr.length) params.selected = arr;
+  }
+
+  qs('runState').textContent='Running…'; qs('storeBtn').disabled=true;
+  try{
+    const t0=performance.now();
+    const r=await fetch(apiBase+'/api/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
+    if(!r.ok) throw new Error(r.statusText);
+    const data=await r.json();
+    if(!('runtime'in data)) data.runtime=((performance.now()-t0)/1000).toFixed(3);
+    render(data,'resTitle','resBox'); lastResult=data;
+    qs('storeBtn').disabled=false; qs('runState').textContent='Done ✅ (not stored)';
+  }catch(e){qs('runState').textContent='Error ❌';qs('resBox').textContent=e;lastResult=null;}
+  finally{stopProgress();}
+};
+
+/* ---------- Store ---------- */
+qs('storeBtn').onclick=async()=>{
+  if(!lastResult) return;
+  startProgress();
+  qs('runState').textContent='Storing…';
+  try{
+    const r=await fetch(apiBase+'/api/save-db',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(lastResult)});
+    if(!r.ok) throw new Error(r.statusText);
+    const {file}=await r.json();
+    qs('runState').textContent=`Stored ✅ as ${file}`;
+    qs('storeBtn').disabled=true;
+  }catch{qs('runState').textContent='Store error ❌';}
+  finally{stopProgress();}
+};
+
+/* ---------- Clear ---------- */
+qs('clearBtn').onclick=()=>{
+  qs('pageRun').querySelectorAll('input[type=number]').forEach(i=>i.value=i.defaultValue);
+  selBox.value=''; selBox.disabled=true;
+  document.querySelector('input[value="random"]').checked=true;
+  ['resBox','resTitle','runState'].forEach(id=>qs(id).textContent=id==='resTitle'?'Result':'');
+  qs('storeBtn').disabled=true; lastResult=null;
+};
+
+/* ---------- navigation ---------- */
+qs('toDB').onclick=()=>{toggle('db');loadFiles();};
+
+/* ---------- render helper ---------- */
+function render(d, titleId, boxId){
+  const sel  = d.selected || [];
+  const grps = Array.isArray(d.groups) ? d.groups : [];
+  const rt   = d.runtime ?? '–';
+
+  qs(titleId).textContent = `Result (${grps.length})  ⏱ ${rt}s`;
+
+  /* === 整齐排版 === */
+  const idxW  = String(grps.length).length;          // 序号宽度
+  const itemW = 2;                                   // 单元素宽度
+
+  const lines = grps.map((g,i)=>{
+    const idx   = String(i+1).padStart(idxW,'0');    // G01, G02…
+    const items = g.map(n=>String(n).padStart(itemW,' ')).join(', ');
+    return `G${idx}: [${items}]`;
+  });
+
+  /* 拼接：选定样本 + 空行 + 各解 */
+  qs(boxId).textContent =
+    'Selected: [' + sel.join(', ') + ']\n\n' +
+    lines.join('\n');                                // 一行一个解
+}
+
+/* ---------- page 2 functions ---------- */
+async function loadFiles(){
+  const tb=qs('fileTbody'); tb.innerHTML='<tr><td colspan=3>Loading…</td></tr>';
+  try{
+    const r=await fetch(apiBase+'/api/files'); if(!r.ok) throw new Error(r.statusText);
+    const files=await r.json(), db=files.filter(f=>f.endsWith('.db'));
+    if(!db.length){tb.innerHTML='<tr><td colspan=3>(empty)</td></tr>';return;}
+    tb.innerHTML='';
+    db.forEach(f=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${f}</td><td><button>Display</button></td><td><button>Delete</button></td>`;
+      tr.children[1].firstChild.onclick=()=>displayFile(f);
+      tr.children[2].firstChild.onclick=async()=>{
+        if(confirm('Delete '+f+'?')){
+          await fetch(apiBase+'/api/file/'+encodeURIComponent(f),{method:'DELETE'});
+          loadFiles();
+        }
+      };
+      tb.appendChild(tr);
+    });
+  }catch{tb.innerHTML='<tr><td colspan=3>error</td></tr>';}
+}
+qs('refresh').onclick=loadFiles; qs('backBtn').onclick=()=>toggle('run');
+
+async function displayFile(name){
+  try{
+    const r=await fetch(apiBase+'/api/file/'+encodeURIComponent(name)); if(!r.ok) throw new Error(r.statusText);
+    const d=await r.json(); render(d,'viewTitle','viewBox');
+    qs('viewTitle').textContent=`Viewer: ${name} (${d.groups?d.groups.length:0}) ⏱ ${d.runtime||'-'}s`;
+  }catch(e){qs('viewTitle').textContent='Viewer - error';qs('viewBox').textContent=e;}
+}
+</script>
+</body>
+</html>
