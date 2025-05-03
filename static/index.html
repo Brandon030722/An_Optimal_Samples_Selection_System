@@ -78,7 +78,7 @@ th{background:var(--bg-alt)}
   <div class="field">m <input name="m" type="number" value="45"></div>
 
   <!-- 2 n quantity -->
-  <div class="field">n <input name="n" id="nNum" type="number" value="10"></div>
+  <div class="field">n <input name="n" id="nNum" type="number" value="9"></div>
 
   <!-- 3 mode select -->
   <div class="field">
@@ -94,8 +94,16 @@ th{background:var(--bg-alt)}
 
   <!-- k / j / s -->
   <div class="field">k <input name="k" type="number" value="6"></div>
-  <div class="field">j <input name="j" type="number" value="4"></div>
+  <div class="field">j <input name="j" type="number" value="5"></div>
   <div class="field">s <input name="s" type="number" value="4"></div>
+
+  <!-- time_limit -->
+  <div class="field">
+    Time_limit <input name="time_limit" type="number" value="60">
+    <span class="tooltip">?
+      <span class="tooltiptext">Maximum wall‑clock time (in seconds) allowed before the optimizer stops and returns the best current solution.</span>
+    </span>
+  </div>
 
   <!-- min_s_covered -->
   <div class="field">
@@ -105,9 +113,15 @@ th{background:var(--bg-alt)}
     </span>
   </div>
 
+  <h2>Advanced parameters
+  <span class="tooltip">?
+      <span class="tooltiptext">Modifications are only recommended to save time if the approximate number of parameters to be calculated is known. <em>each</em> item must appear.</span>
+  </h2>
+
   <!-- max_trials -->
   <div class="field">
-    Max_trials <input name="max_trials" type="number" value="50">
+    Max_trials(Advanced mode modification only) <input type="checkbox" id="chk_max_trials"><input name="max_trials" type="number" value="0" disabled>
+
     <span class="tooltip">?
       <span class="tooltiptext">Upper limit on the total number of greedy search iterations. The larger this number is, the more rounds the algorithm has and the more accurate the algorithm is.</span>
     </span>
@@ -115,7 +129,8 @@ th{background:var(--bg-alt)}
 
   <!-- sample_per_round -->
   <div class="field">
-    Sample_per_round <input name="sample_per_round" type="number" value="200">
+    Sample_per_round(Advanced mode modification only) <input type="checkbox" id="chk_sample_per_round"><input name="sample_per_round" type="number" value="0" disabled>
+
     <span class="tooltip">?
       <span class="tooltiptext">Number of random candidate sets generated in <em>each</em> iteration.</span>
     </span>
@@ -176,19 +191,32 @@ const stopProgress =()=>{progWrap.style.display='none';};
 
 let lastResult=null;
 
+/* --- enable / disable advanced fields --- */
+const chkMax  = qs('chk_max_trials');
+const inpMax  = qs('pageRun').querySelector('[name="max_trials"]');
+const chkSam  = qs('chk_sample_per_round');
+const inpSam  = qs('pageRun').querySelector('[name="sample_per_round"]');
+
+function toggleField(chk, inp){
+  inp.disabled = !chk.checked;
+  if(!chk.checked) inp.value = 0;
+}
+chkMax.onchange = () => toggleField(chkMax, inpMax);
+chkSam.onchange = () => toggleField(chkSam, inpSam);
+
 /* ---------- Run ---------- */
 qs('runBtn').onclick=async()=>{
   startProgress();
   const params={};
   params.n = nNum.value;
 
-  ['m','k','j','s','min_s_covered','max_trials','sample_per_round']
+  ['m','k','j','s','time_limit','min_s_covered','max_trials','sample_per_round']
     .forEach(k=>params[k]=qs('pageRun').querySelector(`[name="${k}"]`).value);
 
   // 如果是 selected 模式且有样本列表
   const isSelected = document.querySelector('input[value="selected"]').checked;
   if(isSelected){
-    const arr = selBox.value.trim().split(/[,\\s]+/).filter(x=>x).map(Number).filter(x=>!isNaN(x));
+    const arr = selBox.value.trim().split(/[ ,\n\t\r]+/).filter(x=>x).map(Number).filter(x=>!isNaN(x));
     if(arr.length) params.selected = arr;
   }
 
@@ -227,6 +255,8 @@ qs('clearBtn').onclick=()=>{
   document.querySelector('input[value="random"]').checked=true;
   ['resBox','resTitle','runState'].forEach(id=>qs(id).textContent=id==='resTitle'?'Result':'');
   qs('storeBtn').disabled=true; lastResult=null;
+  chkMax.checked=false; inpMax.disabled=true; inpMax.value=0;
+  chkSam.checked=false; inpSam.disabled=true; inpSam.value=0;
 };
 
 /* ---------- navigation ---------- */
